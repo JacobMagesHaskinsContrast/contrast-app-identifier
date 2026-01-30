@@ -1,0 +1,26 @@
+[project]
+name = "contrast-app-identifier"
+version = "0.1.0"
+description = "Pydantic AI agent that identifies which Contrast Security application corresponds to a code repository"
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic-ai[openai,anthropic,bedrock,vertexai,mcp]>=0.1.0",
+    "pydantic>=2.0",
+    "python-dotenv>=1.0.0",
+    "click>=8.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "pytest-mock>=3.10",
+    "vcrpy>=4.2",
+]
+
+[project.scripts]
+contrast-identify = "app_identifier.main:main"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
