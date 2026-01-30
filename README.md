@@ -127,6 +127,35 @@ pytest
 contrast-identify --debug
 ```
 
+## Testing
+
+### Automated Tests
+
+The project includes comprehensive test coverage:
+
+```bash
+# Run all tests
+pytest -v
+
+# Run specific test categories
+pytest tests/test_mcp_integration.py  # MCP integration tests
+pytest tests/test_e2e.py              # End-to-end tests
+pytest -m e2e                          # E2E tests only
+
+# Run with coverage
+pytest --cov=app_identifier --cov-report=term-missing
+```
+
+### Manual Testing
+
+For manual testing across different repository types (Java/Maven, Node.js, Python), see the [Manual Testing Guide](docs/MANUAL_TESTING.md).
+
+The manual testing guide includes:
+- Step-by-step testing procedures
+- Test cases for different technology stacks
+- Troubleshooting common issues
+- Results documentation template
+
 ## License
 
 [License details to be added]
