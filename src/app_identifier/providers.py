@@ -39,21 +39,20 @@ def get_model(config: Config) -> Model:
 
 def _create_bedrock_model(config: Config) -> Model:
     """Create AWS Bedrock model."""
-    from pydantic_ai.models.bedrock import BedrockModel
-    import boto3
+    from pydantic_ai.models.bedrock import BedrockConverseModel
+    import os
 
-    # Create Bedrock client
-    bedrock_client = boto3.client(
-        service_name="bedrock-runtime",
-        region_name=config.aws_region,
-        aws_access_key_id=config.aws_access_key_id,
-        aws_secret_access_key=config.aws_secret_access_key,
-    )
+    # Set AWS credentials and region in environment
+    if config.aws_access_key_id:
+        os.environ["AWS_ACCESS_KEY_ID"] = config.aws_access_key_id
+    if config.aws_secret_access_key:
+        os.environ["AWS_SECRET_ACCESS_KEY"] = config.aws_secret_access_key
+    if config.aws_region:
+        os.environ["AWS_DEFAULT_REGION"] = config.aws_region
 
     # Return model instance
-    return BedrockModel(
+    return BedrockConverseModel(
         model_name=config.bedrock_model_id,
-        client=bedrock_client,
     )
 
 
