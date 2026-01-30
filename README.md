@@ -6,6 +6,8 @@ A Pydantic AI agent that automatically identifies which Contrast Security applic
 
 This tool uses LLM reasoning to analyze repository structure, configuration files, and Contrast application metadata to determine the best match between a repository and a Contrast application.
 
+**New to this project?** Read the [Project Walkthrough](docs/PROJECT_WALKTHROUGH.md) for a narrative explanation of how everything works, including real-world examples and use cases.
+
 ## Features
 
 - **Multi-LLM Support**: Works with Azure OpenAI, Anthropic, AWS Bedrock, and Google Gemini
