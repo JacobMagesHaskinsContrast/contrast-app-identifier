@@ -13,31 +13,31 @@ from .mcp_tools import create_mcp_toolsets
 
 
 AGENT_INSTRUCTIONS = """
-You are an expert at analyzing codebases and matching them to applications in Contrast Security.
+Match the repository at {repo_path} to a Contrast Security application.
 
-Your task: Identify which Contrast Application corresponds to the repository at {repo_path}.
+IMPORTANT: Minimize tool calls to reduce cost. Follow this exact order and STOP as soon as you have a match:
 
-Process:
-1. Explore the repository structure and read key files (package.json, pom.xml, build.gradle, README, etc.)
-2. Extract project identifiers: name, artifactId, package names, technology stack
-3. Search Contrast applications using contrast_search_applications tool
-4. Compare repository characteristics with application metadata (name, tags, languages, routes)
-5. If multiple candidates exist, use contrast_get_route_coverage to validate (compare extracted routes vs Contrast routes)
-6. Return the best match with confidence level
+STEP 1 - Check for Contrast config (FASTEST PATH):
+- Look for contrast_security.yaml or contrast.yaml in repo root
+- If found and contains application.name, search Contrast for that exact name and return immediately
 
-Signals to consider:
-- Project name in package.json, pom.xml, or similar config files
-- Technology stack (Java/Maven, Node.js/npm, Python, etc.)
-- Application name patterns (exact match, substring, similar naming)
-- Route/endpoint patterns if available in source code
-- Repository structure and conventions
+STEP 2 - Check project config (if step 1 didn't match):
+- Read ONE file: pom.xml (Java), package.json (Node), or pyproject.toml (Python)
+- Extract project name/artifactId
+- Search Contrast once with that name
 
-Confidence levels:
-- HIGH (>90%): Exact name match + technology match + route validation
-- MEDIUM (70-90%): Strong name similarity + technology match
-- LOW (<70%): Weak signals, multiple candidates, or missing validation
+STEP 3 - Return result:
+- If match found: HIGH confidence
+- If no match: Return NOT_FOUND with LOW confidence
 
-Always explain your reasoning in detail.
+DO NOT:
+- List directory contents unless necessary
+- Read multiple config files
+- Make multiple search calls
+- Get route coverage (not needed for basic matching)
+- Explore source code files
+
+Keep reasoning brief.
 """
 
 
@@ -74,39 +74,31 @@ async def identify_application(
     agent = Agent(
         model=model,
         deps_type=AgentDependencies,
-        result_type=ApplicationMatch,
+        output_type=ApplicationMatch,
         system_prompt=AGENT_INSTRUCTIONS.format(repo_path=repo_path),
-        toolsets=toolsets,
+        mcp_servers=toolsets,
         retries=2,
     )
 
-    # Run agent with timeout
+    # Run agent (no timeout wrapper to avoid Python 3.13 cancel scope issues)
     try:
-        result = await asyncio.wait_for(
-            agent.run(
-                user_prompt=(
-                    f"Identify the Contrast application that corresponds to "
-                    f"the repository at {repo_path}. Analyze the repository "
-                    f"structure and files, then search for matching Contrast "
-                    f"applications."
-                ),
-                deps=deps,
+        result = await agent.run(
+            user_prompt=(
+                f"Identify the Contrast application that corresponds to "
+                f"the repository at {repo_path}. Analyze the repository "
+                f"structure and files, then search for matching Contrast "
+                f"applications."
             ),
-            timeout=config.agent_timeout,
+            deps=deps,
         )
 
         if config.debug_logging:
             import sys
-            print(f"Agent result: {result.data}", file=sys.stderr)
+            print(f"Agent result: {result.output}", file=sys.stderr)
             print(f"Agent usage: {result.usage()}", file=sys.stderr)
 
-        return result.data
+        return result.output
 
-    except asyncio.TimeoutError:
-        raise TimeoutError(
-            f"Agent timed out after {config.agent_timeout}s. "
-            f"Consider increasing AGENT_TIMEOUT."
-        )
     except Exception as e:
         if config.debug_logging:
             import sys
