@@ -4,7 +4,7 @@ Pydantic AI agent for identifying Contrast applications from repositories.
 
 from typing import Optional
 
-from pydantic_ai import Agent, RunContext, UsageLimits
+from pydantic_ai import Agent, UsageLimits
 from pydantic_ai.messages import ModelMessage
 
 from .config import Config
@@ -14,24 +14,22 @@ from .providers import get_model
 from .mcp_tools import create_mcp_toolsets
 
 # Context management constants
-TOKEN_THRESHOLD_FOR_TRIMMING = 2000  # Trim history when tokens exceed this
-MESSAGES_TO_KEEP_AFTER_TRIM = 4  # Keep last N messages after trimming
-MAX_MODEL_REQUESTS = 5  # Maximum model round-trips per run
-MAX_TOOL_CALLS = 10  # Maximum tool invocations per run
+MAX_MESSAGES_BEFORE_TRIM = 20  # Trim history when message count exceeds this
+MESSAGES_TO_KEEP_AFTER_TRIM = 10  # Keep last N messages after trimming
+MAX_MODEL_REQUESTS = 10  # Maximum model round-trips per run
+MAX_TOOL_CALLS = 15  # Maximum tool invocations per run
 
 
-def trim_context_on_high_usage(
-    ctx: RunContext[AgentDependencies],
+def trim_old_messages(
     messages: list[ModelMessage],
 ) -> list[ModelMessage]:
     """
-    Trim message history when token usage gets high.
+    Trim message history when it grows too long.
 
     Keeps the first message (system context) plus the most recent messages
-    to maintain conversation coherence while managing token costs.
+    to maintain conversation coherence while managing context size.
     """
-    if ctx.usage.total_tokens > TOKEN_THRESHOLD_FOR_TRIMMING:
-        # Keep first message (system prompt context) + last N messages
+    if len(messages) > MAX_MESSAGES_BEFORE_TRIM:
         return messages[:1] + messages[-MESSAGES_TO_KEEP_AFTER_TRIM:]
     return messages
 
@@ -102,7 +100,7 @@ async def identify_application(
         system_prompt=AGENT_INSTRUCTIONS.format(repo_path=repo_path),
         mcp_servers=toolsets,
         retries=2,
-        history_processors=[trim_context_on_high_usage],
+        history_processors=[trim_old_messages],
     )
 
     # Run agent (no timeout wrapper to avoid Python 3.13 cancel scope issues)
