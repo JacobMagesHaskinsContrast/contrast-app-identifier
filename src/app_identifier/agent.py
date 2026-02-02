@@ -2,14 +2,38 @@
 Pydantic AI agent for identifying Contrast applications from repositories.
 """
 
-import asyncio
 from typing import Optional
-from pydantic_ai import Agent
+
+from pydantic_ai import Agent, RunContext, UsageLimits
+from pydantic_ai.messages import ModelMessage
+
 from .config import Config
 from .dependencies import AgentDependencies
 from .models import ApplicationMatch
 from .providers import get_model
 from .mcp_tools import create_mcp_toolsets
+
+# Context management constants
+TOKEN_THRESHOLD_FOR_TRIMMING = 2000  # Trim history when tokens exceed this
+MESSAGES_TO_KEEP_AFTER_TRIM = 4  # Keep last N messages after trimming
+MAX_MODEL_REQUESTS = 5  # Maximum model round-trips per run
+MAX_TOOL_CALLS = 10  # Maximum tool invocations per run
+
+
+def trim_context_on_high_usage(
+    ctx: RunContext[AgentDependencies],
+    messages: list[ModelMessage],
+) -> list[ModelMessage]:
+    """
+    Trim message history when token usage gets high.
+
+    Keeps the first message (system context) plus the most recent messages
+    to maintain conversation coherence while managing token costs.
+    """
+    if ctx.usage.total_tokens > TOKEN_THRESHOLD_FOR_TRIMMING:
+        # Keep first message (system prompt context) + last N messages
+        return messages[:1] + messages[-MESSAGES_TO_KEEP_AFTER_TRIM:]
+    return messages
 
 
 AGENT_INSTRUCTIONS = """
@@ -70,7 +94,7 @@ async def identify_application(
         debug_mode=config.debug_logging,
     )
 
-    # Create agent with instructions
+    # Create agent with instructions and context management
     agent = Agent(
         model=model,
         deps_type=AgentDependencies,
@@ -78,6 +102,7 @@ async def identify_application(
         system_prompt=AGENT_INSTRUCTIONS.format(repo_path=repo_path),
         mcp_servers=toolsets,
         retries=2,
+        history_processors=[trim_context_on_high_usage],
     )
 
     # Run agent (no timeout wrapper to avoid Python 3.13 cancel scope issues)
@@ -90,6 +115,10 @@ async def identify_application(
                 f"applications."
             ),
             deps=deps,
+            usage_limits=UsageLimits(
+                request_limit=MAX_MODEL_REQUESTS,
+                tool_calls_limit=MAX_TOOL_CALLS,
+            ),
         )
 
         if config.debug_logging:
