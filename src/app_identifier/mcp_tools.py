@@ -1,11 +1,26 @@
 """
 MCP toolset setup for filesystem and Contrast server integration.
+
+Tool filtering is applied to reduce token usage - only tools actually used
+by the agent are exposed. See docs/mcp-tool-usage-research.md for details.
 """
 
-import asyncio
 import os
 from typing import List
 from .config import Config
+
+# Tools actually used by the agent (based on empirical testing)
+# Names include prefix as that's how they appear in tool_def.name
+FILESYSTEM_TOOLS = frozenset({
+    "fs__search_files",
+    "fs__read_text_file",
+    "fs__read_multiple_files",
+    "fs__list_directory",
+})
+
+CONTRAST_TOOLS = frozenset({
+    "contrast__search_applications",
+})
 
 
 async def create_mcp_toolsets(config: Config, repo_path: str) -> List:
@@ -17,7 +32,7 @@ async def create_mcp_toolsets(config: Config, repo_path: str) -> List:
         repo_path: Repository path to provide filesystem access to
 
     Returns:
-        List of connected MCP server instances
+        List of connected MCP server instances (filtered to only needed tools)
 
     Raises:
         Exception: If MCP server connection fails
@@ -26,7 +41,7 @@ async def create_mcp_toolsets(config: Config, repo_path: str) -> List:
 
     toolsets = []
 
-    # Filesystem MCP Server
+    # Filesystem MCP Server (filtered to only needed tools)
     fs_server = MCPServerStdio(
         command="npx",
         args=[
@@ -38,9 +53,12 @@ async def create_mcp_toolsets(config: Config, repo_path: str) -> List:
         ],
         tool_prefix="fs_",
     )
-    toolsets.append(fs_server)
+    fs_filtered = fs_server.filtered(
+        lambda ctx, tool_def: tool_def.name in FILESYSTEM_TOOLS
+    )
+    toolsets.append(fs_filtered)
 
-    # Contrast MCP Server (via Docker)
+    # Contrast MCP Server via Docker (filtered to only needed tools)
     contrast_env = config.get_contrast_env()
     contrast_args = [
         "run", "-i", "--rm",
@@ -63,7 +81,10 @@ async def create_mcp_toolsets(config: Config, repo_path: str) -> List:
         env=env,
         tool_prefix="contrast_",
     )
-    toolsets.append(contrast_server)
+    contrast_filtered = contrast_server.filtered(
+        lambda ctx, tool_def: tool_def.name in CONTRAST_TOOLS
+    )
+    toolsets.append(contrast_filtered)
 
     if config.debug_logging:
         import sys
